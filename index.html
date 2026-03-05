@@ -133,7 +133,20 @@ const circumference = 2 * Math.PI * radius;
 progress.style.strokeDasharray = circumference;
 
 /* =========================
-   TIME CALCULATION (FIXED)
+   SYDNEY DATE (CRITICAL)
+========================= */
+
+function getSydneyDate() {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+}
+
+/* =========================
+   TIMER LOGIC
 ========================= */
 
 function getRemainingSeconds() {
@@ -173,24 +186,29 @@ function updateDisplay() {
 ========================= */
 
 function toggleTimer() {
+
   if (isRunning) {
-    // Pause
     const remaining = getRemainingSeconds();
     localStorage.setItem("remaining", remaining);
+
     endTimestamp = null;
     clearInterval(interval);
     interval = null;
+
     isRunning = false;
     toggleBtn.textContent = "Resume";
-  } else {
-    // Start / Resume
+  }
+
+  else {
     const remaining = getRemainingSeconds();
     endTimestamp = Date.now() + remaining * 1000;
 
     interval = setInterval(updateDisplay, 1000);
+
     isRunning = true;
     toggleBtn.textContent = "Pause";
   }
+
 }
 
 function resetTimer() {
@@ -198,8 +216,10 @@ function resetTimer() {
   interval = null;
   isRunning = false;
   endTimestamp = null;
+
   localStorage.setItem("remaining", TOTAL_SECONDS);
   toggleBtn.textContent = "Start";
+
   updateDisplay();
 }
 
@@ -207,16 +227,45 @@ function resetTimer() {
    STREAK LOGIC
 ========================= */
 
+function daysBetween(date1, date2) {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+
+  const diff = Math.abs(d2 - d1);
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
 function completeDay() {
-  const today = new Date().toDateString();
+
+  const today = getSydneyDate();
   const lastCompleted = localStorage.getItem("lastCompleted");
 
-  if (lastCompleted !== today) {
-    let streak = parseInt(localStorage.getItem("streak") || "0");
-    streak++;
-    localStorage.setItem("streak", streak);
-    localStorage.setItem("lastCompleted", today);
+  let streak = parseInt(localStorage.getItem("streak") || "0");
+
+  if (!lastCompleted) {
+    streak = 1;
   }
+
+  else {
+
+    const diff = daysBetween(lastCompleted, today);
+
+    if (diff === 0) {
+      return;
+    }
+
+    if (diff === 1) {
+      streak += 1;
+    }
+
+    if (diff > 1) {
+      streak = 1;
+    }
+
+  }
+
+  localStorage.setItem("streak", streak);
+  localStorage.setItem("lastCompleted", today);
 
   loadStreak();
 }
@@ -226,19 +275,28 @@ function loadStreak() {
 }
 
 /* =========================
-   MIDNIGHT RESET
+   DAILY RESET
 ========================= */
 
-function checkMidnightReset() {
-  const today = new Date().toDateString();
-  const lastVisit = localStorage.getItem("lastVisit");
+function checkNewDay() {
 
-  if (lastVisit && lastVisit !== today) {
+  const today = getSydneyDate();
+  const lastSeen = localStorage.getItem("lastSeenDate");
+
+  if (lastSeen && lastSeen !== today) {
+
     localStorage.setItem("remaining", TOTAL_SECONDS);
-    localStorage.removeItem("lastCompleted");
+
+    clearInterval(interval);
+    interval = null;
+    isRunning = false;
+    endTimestamp = null;
+
+    toggleBtn.textContent = "Start";
+
   }
 
-  localStorage.setItem("lastVisit", today);
+  localStorage.setItem("lastSeenDate", today);
 }
 
 /* =========================
@@ -246,9 +304,13 @@ function checkMidnightReset() {
 ========================= */
 
 function init() {
-  checkMidnightReset();
+
+  checkNewDay();
+
   updateDisplay();
   loadStreak();
+
+  setInterval(checkNewDay, 60000); // check every minute
 }
 
 init();
