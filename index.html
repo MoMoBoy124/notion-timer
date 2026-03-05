@@ -21,6 +21,8 @@ html, body {
   gap: 60px;
 }
 
+/* TIMER */
+
 .ring-wrapper {
   position: relative;
   width: 230px;
@@ -40,6 +42,8 @@ svg {
   font-size: 52px;
   font-weight: 600;
 }
+
+/* CONTROLS */
 
 .controls {
   display: flex;
@@ -71,6 +75,28 @@ button:hover {
   font-size: 16px;
   opacity: 0.75;
 }
+
+/* HEATMAP */
+
+.heatmap {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(7, 14px);
+  gap: 5px;
+}
+
+.day {
+  width: 14px;
+  height: 14px;
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+.level1 { background:#2e7d32 }
+.level2 { background:#43a047 }
+.level3 { background:#66bb6a }
+.level4 { background:#81c784 }
+
 </style>
 </head>
 
@@ -104,6 +130,7 @@ button:hover {
   </div>
 
   <div class="controls">
+
     <div class="buttons">
       <button onclick="toggleTimer()" id="toggleBtn">Start</button>
       <button onclick="resetTimer()">Reset</button>
@@ -112,208 +139,264 @@ button:hover {
     <div class="streak">
       🔥 Streak: <span id="streak">0</span> days
     </div>
+
+    <div id="heatmap" class="heatmap"></div>
+
   </div>
 
 </div>
 
 <script>
+
 const TOTAL_SECONDS = 7200;
 
-let endTimestamp = null;
+let endTimestamp = localStorage.getItem("endTimestamp")
+  ? parseInt(localStorage.getItem("endTimestamp"))
+  : null;
+
 let interval = null;
-let isRunning = false;
 
 const display = document.getElementById("display");
 const progress = document.getElementById("progress");
 const toggleBtn = document.getElementById("toggleBtn");
 const streakDisplay = document.getElementById("streak");
+const heatmap = document.getElementById("heatmap");
 
 const radius = 100;
 const circumference = 2 * Math.PI * radius;
 progress.style.strokeDasharray = circumference;
 
-/* =========================
-   SYDNEY DATE (CRITICAL)
-========================= */
+/* SOUND */
 
-function getSydneyDate() {
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
+function playSound() {
+
+  const audio = new Audio(
+    "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
+  );
+
+  audio.volume = 0.6;
+  audio.play();
 }
 
-/* =========================
-   TIMER LOGIC
-========================= */
+/* TIMER */
 
 function getRemainingSeconds() {
-  if (!endTimestamp) {
+
+  if (!endTimestamp)
     return parseInt(localStorage.getItem("remaining") || TOTAL_SECONDS);
-  }
-  return Math.max(0, Math.floor((endTimestamp - Date.now()) / 1000));
+
+  return Math.max(
+    0,
+    Math.floor((endTimestamp - Date.now()) / 1000)
+  );
 }
 
 function updateDisplay() {
+
   const remaining = getRemainingSeconds();
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
 
   display.textContent =
-    String(minutes).padStart(2, "0") +
+    String(minutes).padStart(2,"0") +
     ":" +
-    String(seconds).padStart(2, "0");
+    String(seconds).padStart(2,"0");
 
   progress.style.strokeDashoffset =
     circumference * (1 - remaining / TOTAL_SECONDS);
 
   localStorage.setItem("remaining", remaining);
 
-  if (remaining === 0 && isRunning) {
+  if (remaining === 0 && endTimestamp) {
+
     clearInterval(interval);
-    interval = null;
-    isRunning = false;
+
+    endTimestamp = null;
+
+    localStorage.removeItem("endTimestamp");
+
     toggleBtn.textContent = "Start";
+
     completeDay();
+
+    playSound();
   }
 }
 
-/* =========================
-   TIMER CONTROLS
-========================= */
+/* CONTROLS */
 
 function toggleTimer() {
 
-  if (isRunning) {
+  if (endTimestamp) {
+
     const remaining = getRemainingSeconds();
+
     localStorage.setItem("remaining", remaining);
 
+    localStorage.removeItem("endTimestamp");
+
     endTimestamp = null;
+
     clearInterval(interval);
-    interval = null;
 
-    isRunning = false;
     toggleBtn.textContent = "Resume";
-  }
 
-  else {
+  } else {
+
     const remaining = getRemainingSeconds();
+
     endTimestamp = Date.now() + remaining * 1000;
+
+    localStorage.setItem("endTimestamp", endTimestamp);
 
     interval = setInterval(updateDisplay, 1000);
 
-    isRunning = true;
     toggleBtn.textContent = "Pause";
   }
-
 }
 
 function resetTimer() {
+
   clearInterval(interval);
-  interval = null;
-  isRunning = false;
+
   endTimestamp = null;
 
+  localStorage.removeItem("endTimestamp");
+
   localStorage.setItem("remaining", TOTAL_SECONDS);
+
   toggleBtn.textContent = "Start";
 
   updateDisplay();
 }
 
-/* =========================
-   STREAK LOGIC
-========================= */
-
-function daysBetween(date1, date2) {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-
-  const diff = Math.abs(d2 - d1);
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
+/* STREAK */
 
 function completeDay() {
 
-  const today = getSydneyDate();
+  const today = new Date();
+  const todayStr = today.toDateString();
+
   const lastCompleted = localStorage.getItem("lastCompleted");
 
   let streak = parseInt(localStorage.getItem("streak") || "0");
 
   if (!lastCompleted) {
+
     streak = 1;
-  }
 
-  else {
+  } else {
 
-    const diff = daysBetween(lastCompleted, today);
+    const lastDate = new Date(lastCompleted);
 
-    if (diff === 0) {
-      return;
-    }
+    const diff =
+      Math.floor((today-lastDate)/(1000*60*60*24));
 
-    if (diff === 1) {
-      streak += 1;
-    }
-
-    if (diff > 1) {
-      streak = 1;
-    }
-
+    if (diff === 1) streak++;
+    else if (diff > 1) streak = 1;
   }
 
   localStorage.setItem("streak", streak);
-  localStorage.setItem("lastCompleted", today);
+  localStorage.setItem("lastCompleted", todayStr);
+
+  recordHeatmap();
 
   loadStreak();
 }
 
 function loadStreak() {
-  streakDisplay.textContent = localStorage.getItem("streak") || "0";
+
+  streakDisplay.textContent =
+    localStorage.getItem("streak") || "0";
 }
 
-/* =========================
-   DAILY RESET
-========================= */
+/* HEATMAP */
 
-function checkNewDay() {
+function recordHeatmap(){
 
-  const today = getSydneyDate();
-  const lastSeen = localStorage.getItem("lastSeenDate");
+  const today = new Date().toISOString().slice(0,10);
 
-  if (lastSeen && lastSeen !== today) {
+  let data =
+    JSON.parse(localStorage.getItem("heatmap")||"{}");
 
-    localStorage.setItem("remaining", TOTAL_SECONDS);
+  data[today] = (data[today]||0) + 1;
 
-    clearInterval(interval);
-    interval = null;
-    isRunning = false;
-    endTimestamp = null;
+  localStorage.setItem("heatmap",JSON.stringify(data));
 
-    toggleBtn.textContent = "Start";
+  renderHeatmap();
+}
 
+function renderHeatmap(){
+
+  heatmap.innerHTML="";
+
+  const data =
+    JSON.parse(localStorage.getItem("heatmap")||"{}");
+
+  for(let i=29;i>=0;i--){
+
+    const d=new Date();
+
+    d.setDate(d.getDate()-i);
+
+    const key=d.toISOString().slice(0,10);
+
+    const value=data[key]||0;
+
+    const cell=document.createElement("div");
+
+    cell.classList.add("day");
+
+    if(value>=4)cell.classList.add("level4");
+    else if(value>=3)cell.classList.add("level3");
+    else if(value>=2)cell.classList.add("level2");
+    else if(value>=1)cell.classList.add("level1");
+
+    heatmap.appendChild(cell);
+  }
+}
+
+/* RESET */
+
+function checkMidnightReset(){
+
+  const today=new Date().toDateString();
+
+  const lastVisit=localStorage.getItem("lastVisit");
+
+  if(lastVisit && lastVisit!==today){
+
+    localStorage.setItem("remaining",TOTAL_SECONDS);
+
+    localStorage.removeItem("endTimestamp");
   }
 
-  localStorage.setItem("lastSeenDate", today);
+  localStorage.setItem("lastVisit",today);
 }
 
-/* =========================
-   INIT
-========================= */
+/* INIT */
 
-function init() {
+function init(){
 
-  checkNewDay();
+  checkMidnightReset();
+
+  if(endTimestamp){
+
+    interval=setInterval(updateDisplay,1000);
+
+    toggleBtn.textContent="Pause";
+  }
 
   updateDisplay();
+
   loadStreak();
 
-  setInterval(checkNewDay, 60000); // check every minute
+  renderHeatmap();
 }
 
 init();
+
 </script>
 
 </body>
