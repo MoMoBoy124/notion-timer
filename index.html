@@ -18,10 +18,9 @@ html, body {
   align-items: center;
   justify-content: center;
   padding: 25px 40px;
-  gap: 60px; /* space between ring and controls */
+  gap: 60px;
 }
 
-/* Bigger ring */
 .ring-wrapper {
   position: relative;
   width: 230px;
@@ -38,11 +37,10 @@ svg {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 52px; /* bigger timer text */
+  font-size: 52px;
   font-weight: 600;
 }
 
-/* Controls section */
 .controls {
   display: flex;
   flex-direction: column;
@@ -120,8 +118,10 @@ button:hover {
 
 <script>
 const TOTAL_SECONDS = 7200;
-let remaining = TOTAL_SECONDS;
+
+let endTimestamp = null;
 let interval = null;
+let isRunning = false;
 
 const display = document.getElementById("display");
 const progress = document.getElementById("progress");
@@ -132,7 +132,20 @@ const radius = 100;
 const circumference = 2 * Math.PI * radius;
 progress.style.strokeDasharray = circumference;
 
+/* =========================
+   TIME CALCULATION (FIXED)
+========================= */
+
+function getRemainingSeconds() {
+  if (!endTimestamp) {
+    return parseInt(localStorage.getItem("remaining") || TOTAL_SECONDS);
+  }
+  return Math.max(0, Math.floor((endTimestamp - Date.now()) / 1000));
+}
+
 function updateDisplay() {
+  const remaining = getRemainingSeconds();
+
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
 
@@ -145,25 +158,37 @@ function updateDisplay() {
     circumference * (1 - remaining / TOTAL_SECONDS);
 
   localStorage.setItem("remaining", remaining);
-}
 
-function toggleTimer() {
-  if (interval) {
+  if (remaining === 0 && isRunning) {
     clearInterval(interval);
     interval = null;
+    isRunning = false;
+    toggleBtn.textContent = "Start";
+    completeDay();
+  }
+}
+
+/* =========================
+   TIMER CONTROLS
+========================= */
+
+function toggleTimer() {
+  if (isRunning) {
+    // Pause
+    const remaining = getRemainingSeconds();
+    localStorage.setItem("remaining", remaining);
+    endTimestamp = null;
+    clearInterval(interval);
+    interval = null;
+    isRunning = false;
     toggleBtn.textContent = "Resume";
   } else {
-    interval = setInterval(() => {
-      if (remaining > 0) {
-        remaining--;
-        updateDisplay();
-      } else {
-        clearInterval(interval);
-        interval = null;
-        toggleBtn.textContent = "Start";
-        completeDay();
-      }
-    }, 1000);
+    // Start / Resume
+    const remaining = getRemainingSeconds();
+    endTimestamp = Date.now() + remaining * 1000;
+
+    interval = setInterval(updateDisplay, 1000);
+    isRunning = true;
     toggleBtn.textContent = "Pause";
   }
 }
@@ -171,10 +196,16 @@ function toggleTimer() {
 function resetTimer() {
   clearInterval(interval);
   interval = null;
-  remaining = TOTAL_SECONDS;
+  isRunning = false;
+  endTimestamp = null;
+  localStorage.setItem("remaining", TOTAL_SECONDS);
   toggleBtn.textContent = "Start";
   updateDisplay();
 }
+
+/* =========================
+   STREAK LOGIC
+========================= */
 
 function completeDay() {
   const today = new Date().toDateString();
@@ -194,21 +225,28 @@ function loadStreak() {
   streakDisplay.textContent = localStorage.getItem("streak") || "0";
 }
 
+/* =========================
+   MIDNIGHT RESET
+========================= */
+
 function checkMidnightReset() {
   const today = new Date().toDateString();
   const lastVisit = localStorage.getItem("lastVisit");
 
   if (lastVisit && lastVisit !== today) {
-    remaining = TOTAL_SECONDS;
     localStorage.setItem("remaining", TOTAL_SECONDS);
+    localStorage.removeItem("lastCompleted");
   }
 
   localStorage.setItem("lastVisit", today);
 }
 
+/* =========================
+   INIT
+========================= */
+
 function init() {
   checkMidnightReset();
-  remaining = parseInt(localStorage.getItem("remaining") || TOTAL_SECONDS);
   updateDisplay();
   loadStreak();
 }
