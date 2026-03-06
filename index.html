@@ -148,6 +148,8 @@ button:hover {
 
 <script>
 
+let currentDay = new Date().toDateString();
+
 const TOTAL_SECONDS = 7200;
 
 let endTimestamp = localStorage.getItem("endTimestamp")
@@ -357,6 +359,26 @@ function renderHeatmap(){
   }
 }
 
+function checkDayChange(){
+
+  const today = new Date().toDateString();
+
+  if(today !== currentDay){
+
+    currentDay = today;
+
+    /* reset timer for new day */
+    localStorage.setItem("remaining", TOTAL_SECONDS);
+    localStorage.removeItem("lastCompleted");
+
+    resetTimer();
+
+    /* regenerate heatmap so today moves */
+    generateHeatmap();
+  }
+
+}
+
 /* RESET */
 
 function checkMidnightReset(){
@@ -396,6 +418,8 @@ function init(){
 }
 
 init();
+
+setInterval(checkDayChange, 60000); // check every minute
 
 </script>
 
